@@ -1,0 +1,87 @@
+name: AAA Sentinel deploy marker
+description: Record a deployment in AAA Sentinel, so cost anomalies and monitoring incidents show what was deployed right before them.
+author: AAA Sentinel
+branding:
+  icon: flag
+  color: orange
+
+inputs:
+  client-id:
+    description: Client id of an AAA Sentinel API app with the deployments:write scope.
+    required: true
+  client-secret:
+    description: Client secret of that app. Pass it from a repository or environment secret.
+    required: true
+  service:
+    description: Service name, lowercase letters, digits, dots, dashes and underscores (e.g. checkout-api).
+    required: true
+  environment:
+    description: Environment name in the same format (e.g. production).
+    required: true
+  version:
+    description: Version deployed, up to 128 characters. Defaults to the commit SHA.
+    required: false
+    default: ${{ github.sha }}
+  commit-sha:
+    description: Commit deployed (7-40 hex characters). Defaults to the commit that triggered the workflow.
+    required: false
+    default: ${{ github.sha }}
+  account-id:
+    description: AAA Sentinel cloud account the service runs in, so cost anomalies of that account list this deployment.
+    required: false
+    default: ''
+  monitoring-service-id:
+    description: AAA Sentinel monitoring service this deployment belongs to, so its incidents list this deployment.
+    required: false
+    default: ''
+  url:
+    description: Link shown next to the marker. Defaults to this workflow run.
+    required: false
+    default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  started-at:
+    description: When the deployment started, ISO 8601. Defaults to the time the API receives the marker.
+    required: false
+    default: ''
+  finished-at:
+    description: When the deployment finished, ISO 8601.
+    required: false
+    default: ''
+  api-url:
+    description: AAA Sentinel API base URL.
+    required: false
+    default: https://api.aaa-sentinel.com
+  fail-on-error:
+    description: Fail the job when the marker cannot be recorded. By default every failure is only a warning.
+    required: false
+    default: 'false'
+
+outputs:
+  deployment-id:
+    description: Identifier of the recorded deployment.
+    value: ${{ steps.marker.outputs.deployment-id }}
+  duplicate:
+    description: '"true" when this workflow run had already recorded the deployment (a re-run of the same attempt).'
+    value: ${{ steps.marker.outputs.duplicate }}
+
+runs:
+  using: composite
+  steps:
+    - id: marker
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/deploy-marker.sh"
+      env:
+        SENTINEL_CLIENT_ID: ${{ inputs.client-id }}
+        SENTINEL_CLIENT_SECRET: ${{ inputs.client-secret }}
+        SERVICE: ${{ inputs.service }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        VERSION: ${{ inputs.version }}
+        COMMIT_SHA: ${{ inputs.commit-sha }}
+        ACCOUNT_ID: ${{ inputs.account-id }}
+        MONITORING_SERVICE_ID: ${{ inputs.monitoring-service-id }}
+        DEPLOY_URL: ${{ inputs.url }}
+        STARTED_AT: ${{ inputs.started-at }}
+        FINISHED_AT: ${{ inputs.finished-at }}
+        API_URL: ${{ inputs.api-url }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        # A retry of the step is the same deployment; a re-run attempt or a later rollback is a new one.
+        RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
